@@ -30,6 +30,8 @@ def main(args: argparse.Namespace) -> None:
         max_epochs=cfg.training_cfg.num_epochs,
         callbacks=callbacks,
         gradient_clip_val=cfg.training_cfg.clip_grad_norm,
+        accelerator=cfg.training_cfg.accelerator,
+        devices=cfg.training_cfg.num_gpus
     )
     trainer.fit(model)
 

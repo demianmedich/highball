@@ -1,6 +1,7 @@
 # coding=utf-8
 from copy import deepcopy
 from dataclasses import dataclass
+from functools import partial
 from typing import (
     Optional,
     Any,
@@ -123,6 +124,7 @@ class TransformerTranslationModel(LightningModule):
     def forward(self, input_dict: dict) -> Any:
         """forward method is for inference"""
         src_seq: Tensor = input_dict['src_seq']
+        device = src_seq.device
         src_mask: Tensor = input_dict.get('src_mask', None)
         if src_mask is not None and src_mask.dim() == 2:
             src_mask = src_mask[:, None, None, :]
@@ -130,8 +132,8 @@ class TransformerTranslationModel(LightningModule):
         enc_output = self.encode(src_seq, src_mask)
 
         batch_size = src_seq.shape[0]
-        pred = torch.ones(batch_size, 1, dtype=torch.long) * self.sos_token_id
-        decoded_logits = torch.zeros(batch_size, 1, self.cfg.decoder_cfg.vocab_size)
+        pred = torch.ones(batch_size, 1, dtype=torch.long, device=device) * self.sos_token_id
+        decoded_logits = torch.zeros(batch_size, 1, self.cfg.decoder_cfg.vocab_size, device=device)
 
         for i in range(self.cfg.decoder_cfg.max_seq_len):
             tgt_mask = self.make_tgt_mask(pred, self.tgt_pad_token_id)
@@ -249,9 +251,12 @@ class TransformerTranslationModel(LightningModule):
         """
         batch_size, seq_len = tgt_seq.shape
         dtype = tgt_seq.dtype
+        device = tgt_seq.device
         pad_mask = (tgt_seq == pad_token_id).unsqueeze(1)
-        look_ahead_mask = torch.triu(torch.ones(batch_size, seq_len, seq_len, dtype=dtype),
-                                     diagonal=1)
+        look_ahead_mask = torch.triu(
+            torch.ones(batch_size, seq_len, seq_len, dtype=dtype, device=device),
+            diagonal=1
+        )
         # tgt_mask = torch.clip(pad_mask + look_ahead_mask, min=0., max=1.)
         tgt_mask = pad_mask | look_ahead_mask
         return tgt_mask.unsqueeze(1)
@@ -267,7 +272,9 @@ class TransformerTranslationModel(LightningModule):
             batch_size=self.cfg.training_cfg.batch_size,
             shuffle=shuffle,
             num_workers=self.cfg.training_cfg.num_workers,
-            collate_fn=lambda x: self.collate_fn(x, self.src_pad_token_id, self.tgt_pad_token_id)
+            collate_fn=partial(self.collate_fn,
+                               src_pad_token_id=self.src_pad_token_id,
+                               tgt_pad_token_id=self.tgt_pad_token_id)
         )
         return dataloader
 

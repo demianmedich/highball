@@ -14,14 +14,14 @@ CFG = TransformerTranslationModelConfig(
     training_cfg=TrainingConfig(
         batch_size=8,
     ),
-    # optimizer_cfg=AdamOptimizerConfig(
-    #     lr=2e-4,
-    #     weight_decay=0.1,
-    #     betas=(0.9, 0.999)
-    # ),
-    optimizer_cfg=SgdOptimizerConfig(
+    optimizer_cfg=AdamOptimizerConfig(
         lr=2e-4,
+        weight_decay=0.1,
+        betas=(0.9, 0.999)
     ),
+    # optimizer_cfg=SgdOptimizerConfig(
+    #     lr=2e-4,
+    # ),
     lr_scheduler_cfg=None,
     # lr_scheduler_cfg=AnnealingLrSchedulerConfig(
     #     max_lr=1e-3,
@@ -48,16 +48,16 @@ CFG = TransformerTranslationModelConfig(
     encoder_cfg=TransformerEncoderConfig(
         len(vocab),
         max_seq_len=64,
-        hidden_size=128,
-        num_layers=2,
-        intermediate_size=512
+        hidden_size=256,
+        num_layers=4,
+        intermediate_size=1024
     ),
     decoder_cfg=TransformerDecoderConfig(
         len(vocab),
         max_seq_len=64,
-        hidden_size=128,
-        num_layers=2,
-        intermediate_size=512
+        hidden_size=256,
+        num_layers=4,
+        intermediate_size=1024
     ),
     src_vocab=vocab,
     tgt_vocab=vocab,

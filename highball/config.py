@@ -6,6 +6,7 @@ from abc import (
 )
 from typing import Optional
 
+import torch
 from pytorch_lightning import LightningModule
 from torch.utils.data import Dataset
 
@@ -17,9 +18,11 @@ from highball.optim_config import (
 
 @dataclasses.dataclass
 class TrainingConfig:
+    accelerator: Optional[str] = 'gpu' if torch.cuda.is_available() else None
+    num_gpus: Optional[int] = 1
     num_epochs: int = 1
     batch_size: int = 1
-    num_workers: int = 0
+    num_workers: int = 6
     clip_grad_norm: float = 0.
     use_lr_monitor: bool = False
 
