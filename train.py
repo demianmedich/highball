@@ -31,7 +31,7 @@ def main(args: argparse.Namespace) -> None:
         callbacks=callbacks,
         gradient_clip_val=cfg.training_cfg.clip_grad_norm,
         accelerator=cfg.training_cfg.accelerator,
-        devices=cfg.training_cfg.num_gpus
+        devices=cfg.training_cfg.devices
     )
     trainer.fit(model)
 

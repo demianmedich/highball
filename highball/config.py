@@ -19,7 +19,7 @@ from highball.optim_config import (
 @dataclasses.dataclass
 class TrainingConfig:
     accelerator: Optional[str] = 'gpu' if torch.cuda.is_available() else None
-    num_gpus: Optional[int] = 1
+    devices: Optional[int] = 1 if torch.cuda.is_available() else None
     num_epochs: int = 1
     batch_size: int = 1
     num_workers: int = 6
