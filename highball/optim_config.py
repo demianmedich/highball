@@ -15,8 +15,16 @@ from torch.optim import (
     SGD,
     Adam
 )
-from torch.optim.lr_scheduler import _LRScheduler
+from torch.optim.lr_scheduler import (
+    _LRScheduler,
+    LambdaLR
+)
 from torch.optim.optimizer import Optimizer
+
+from highball.optim.scheduler import (
+    get_cosine_schedule_with_warmup,
+    get_linear_schedule_with_warmup
+)
 
 
 @dataclasses.dataclass
@@ -72,7 +80,28 @@ class AdamOptimizerConfig(OptimizerConfig):
 
 
 @dataclasses.dataclass
-class CosineWarmupSchedulerConfig(OptimizerConfig):
+class LinearWarmupSchedulerConfig(LrSchedulerConfig):
+    warmup_steps: int
+    training_steps: int
+    last_epoch: int = -1
 
-    def instantiate(self, params: Tensor) -> Optimizer:
-        pass
+    def instantiate(self, optimizer: Optimizer) -> LambdaLR:
+        return get_linear_schedule_with_warmup(optimizer,
+                                               self.warmup_steps,
+                                               self.training_steps,
+                                               self.last_epoch)
+
+
+@dataclasses.dataclass
+class CosineWarmupSchedulerConfig(LrSchedulerConfig):
+    warmup_steps: int
+    training_steps: int
+    num_cycles: float = 0.5
+    last_epoch: int = -1
+
+    def instantiate(self, optimizer: Optimizer) -> LambdaLR:
+        return get_cosine_schedule_with_warmup(optimizer,
+                                               self.warmup_steps,
+                                               self.training_steps,
+                                               self.num_cycles,
+                                               self.last_epoch)

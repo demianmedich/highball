@@ -1,193 +1,38 @@
 # coding=utf-8
-# Copyright (c) 2020, NVIDIA CORPORATION.  All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-import dataclasses
 import math
-from typing import Literal
 
 from torch.optim import Optimizer
-from torch.optim.lr_scheduler import _LRScheduler
-
-from highball.optim_config import LrSchedulerConfig
-
-DECAY_STYLE = Literal['constant', 'linear', 'cosine']
+from torch.optim.lr_scheduler import LambdaLR
 
 
-@dataclasses.dataclass
-class AnnealingLrSchedulerConfig(LrSchedulerConfig):
-    max_lr: float
-    min_lr: float
-    warmup_steps: int
-    decay_steps: int
-    decay_style: DECAY_STYLE
-    use_checkpoint_lr_scheduler: bool = True
-    override_lr_scheduler: bool = False
-
-    def instantiate(self, optimizer: Optimizer) -> "AnnealingLrScheduler":
-        return AnnealingLrScheduler(
-            optimizer,
-            self.max_lr,
-            self.min_lr,
-            self.warmup_steps,
-            self.decay_steps,
-            self.decay_style,
-            use_checkpoint_lr_scheduler=self.use_checkpoint_lr_scheduler,
-            override_lr_scheduler=self.override_lr_scheduler
-        )
-
-
-class AnnealingLrScheduler(_LRScheduler):
-    """Anneals the learning rate.
-
-    Modified version of Megatron-LM AnnealingLR
-    https://github.com/NVIDIA/Megatron-LM/blob/main/megatron/learning_rates.py
-    """
-
-    def __init__(
-            self,
-            optimizer: Optimizer,
-            max_lr: float,
-            min_lr: float,
-            warmup_steps: int,
-            decay_steps: int,
-            decay_style: DECAY_STYLE,
-            use_checkpoint_lr_scheduler: bool = True,
-            override_lr_scheduler: bool = False
-    ):
-        super().__init__()
-        # Class values.
-        self.optimizer = optimizer
-
-        self.max_lr = float(max_lr)
-        self.min_lr = min_lr
-        assert self.min_lr >= 0.0
-        assert self.max_lr >= self.min_lr
-
-        self.warmup_steps = warmup_steps
-        self.num_steps = 0
-        self.decay_steps = decay_steps
-        assert self.decay_steps > 0
-        assert self.warmup_steps < self.decay_steps
-
-        self.decay_style = decay_style
-
-        self.override_lr_scheduler = override_lr_scheduler
-        self.use_checkpoint_lr_scheduler = use_checkpoint_lr_scheduler
-        if self.override_lr_scheduler:
-            assert not self.use_checkpoint_lr_scheduler, 'both override and ' \
-                                                         'use-checkpoint are set.'
-
-        # Set the learning rate
-        self.step(0)
-
-    def get_lr(self):
-        """Learning rate decay functions from:
-              https://openreview.net/pdf?id=BJYwwY9ll pg. 4"""
-
-        # Use linear warmup for the initial part.
-        if self.warmup_steps > 0 and self.num_steps <= self.warmup_steps:
-            return self.max_lr * float(self.num_steps) / float(self.warmup_steps)
-
-        # If the learning rate is constant, just return the initial value.
-        if self.decay_style == 'constant':
-            return self.max_lr
-
-        # For any steps larger than `self.decay_steps`, use `self.min_lr`.
-        if self.num_steps > self.decay_steps:
-            return self.min_lr
-
-        # If we are done with the warmup period, use the decay style.
-        num_steps_ = self.num_steps - self.warmup_steps
-        decay_steps_ = self.decay_steps - self.warmup_steps
-        decay_ratio = float(num_steps_) / float(decay_steps_)
-        assert decay_ratio >= 0.0
-        assert decay_ratio <= 1.0
-        delta_lr = self.max_lr - self.min_lr
-
-        if self.decay_style == 'linear':
-            coeff = (1.0 - decay_ratio)
-        elif self.decay_style == 'cosine':
-            coeff = 0.5 * (math.cos(math.pi * decay_ratio) + 1.0)
+def get_linear_schedule_with_warmup(
+        optimizer: Optimizer,
+        warmup_steps: int,
+        total_training_steps: int,
+        last_epoch: int = -1,
+) -> LambdaLR:
+    def _schedule(current_step: int):
+        if warmup_steps > current_step:
+            return float(current_step) / float(max(1, warmup_steps))
         else:
-            raise Exception('{} decay style is not supported.'.format(self.decay_style))
+            return max(0., float(total_training_steps - current_step) / float(
+                max(1, total_training_steps - warmup_steps)))
 
-        return self.min_lr + coeff * delta_lr
+    return LambdaLR(optimizer, _schedule, last_epoch=last_epoch)
 
-    def step(self, increment):
-        """Set lr for all parameters groups."""
-        self.num_steps += increment
-        new_lr = self.get_lr()
-        for group in self.optimizer.param_groups:
-            group['lr'] = new_lr
 
-    def state_dict(self):
-        state_dict = {
-            'max_lr': self.max_lr,
-            'warmup_steps': self.warmup_steps,
-            'num_steps': self.num_steps,
-            'decay_style': self.decay_style,
-            'decay_steps': self.decay_steps,
-            'min_lr': self.min_lr
-        }
-        return state_dict
+def get_cosine_schedule_with_warmup(
+        optimizer: Optimizer,
+        warmup_steps: int,
+        total_training_steps: int,
+        num_cycles: float = 0.5,
+        last_epoch: int = -1,
+) -> LambdaLR:
+    def lr_lambda(current_step):
+        if current_step < warmup_steps:
+            return float(current_step) / float(max(1, warmup_steps))
+        progress = float(current_step - warmup_steps) / float(
+            max(1, total_training_steps - warmup_steps))
+        return max(0.0, 0.5 * (1.0 + math.cos(math.pi * float(num_cycles) * 2.0 * progress)))
 
-    def _check_and_set(self, cls_value, sd_value, name):
-        """Auxiliary function for checking the values in the checkpoint and
-        setting them."""
-        if self.override_lr_scheduler:
-            print(' > overriding {} value to {}'.format(name, cls_value))
-            return cls_value
-
-        if not self.use_checkpoint_lr_scheduler:
-            assert cls_value == sd_value, \
-                f'AnnealingLR: class input value {cls_value} and checkpoint' \
-                f'value {sd_value} for {name} do not match'
-        print(' > using checkpoint value {} for {}'.format(sd_value, name))
-        return sd_value
-
-    def load_state_dict(self, sd):
-
-        if 'start_lr' in sd:
-            max_lr_ = sd['start_lr']
-        else:
-            max_lr_ = sd['max_lr']
-        self.max_lr = self._check_and_set(self.max_lr, max_lr_,
-                                          'learning rate')
-
-        self.min_lr = self._check_and_set(self.min_lr, sd['min_lr'],
-                                          'minimum learning rate')
-
-        if 'warmup_iter' in sd:
-            warmup_steps_ = sd['warmup_iter']
-        else:
-            warmup_steps_ = sd['warmup_steps']
-        self.warmup_steps = self._check_and_set(self.warmup_steps,
-                                                warmup_steps_,
-                                                'warmup iterations')
-
-        if 'end_iter' in sd:
-            decay_steps_ = sd['end_iter']
-        else:
-            decay_steps_ = sd['decay_steps']
-        self.decay_steps = self._check_and_set(self.decay_steps, decay_steps_,
-                                               'total number of iterations')
-        self.decay_style = self._check_and_set(self.decay_style,
-                                               sd['decay_style'],
-                                               'decay style')
-
-        if 'num_iters' in sd:
-            num_steps = sd['num_iters']
-        else:
-            num_steps = sd['num_steps']
-        self.step(increment=num_steps)
+    return LambdaLR(optimizer, lr_lambda, last_epoch)
