@@ -7,32 +7,35 @@ from highball.data.toy_data import (
 from highball.models.translation_transformer import TransformerTranslationModelConfig
 from highball.modules.decoders.transformer_decoder import TransformerDecoderConfig
 from highball.modules.encoders.transformer_encoder import TransformerEncoderConfig
-from highball.optim_config import AdamOptimizerConfig, SgdOptimizerConfig
+from highball.optim_config import (
+    AdamOptimizerConfig,
+    CosineWarmupSchedulerConfig
+)
 
+batch_size = 8
+num_epochs = 40
+num_training_data_cnt = 60000
+training_steps = int(num_training_data_cnt * num_epochs // batch_size)
 vocab = ReverseToyDataset.make_default_vocab()
+
 CFG = TransformerTranslationModelConfig(
     training_cfg=TrainingConfig(
+        num_epochs=num_epochs,
         batch_size=8,
+        num_workers=1,
     ),
     optimizer_cfg=AdamOptimizerConfig(
-        lr=2e-4,
+        lr=0.01,
         weight_decay=0.1,
         betas=(0.9, 0.999)
     ),
-    # optimizer_cfg=SgdOptimizerConfig(
-    #     lr=2e-4,
-    # ),
-    lr_scheduler_cfg=None,
-    # lr_scheduler_cfg=AnnealingLrSchedulerConfig(
-    #     max_lr=1e-3,
-    #     min_lr=2e-5,
-    #     warmup_steps=500,
-    #     decay_steps=4000,
-    #     decay_style='cosine',
-    # ),
+    lr_scheduler_cfg=CosineWarmupSchedulerConfig(
+        warmup_steps=int(training_steps * 0.01),
+        training_steps=training_steps
+    ),
     train_data_cfg=ReverseToyDatasetConfig(
         vocab,
-        data_cnt=60000,
+        data_cnt=num_training_data_cnt,
         max_seq_len=64,
     ),
     val_data_cfg=ReverseToyDatasetConfig(
@@ -48,16 +51,16 @@ CFG = TransformerTranslationModelConfig(
     encoder_cfg=TransformerEncoderConfig(
         len(vocab),
         max_seq_len=64,
-        hidden_size=256,
-        num_layers=4,
-        intermediate_size=1024
+        hidden_size=512,
+        num_layers=6,
+        intermediate_size=2048
     ),
     decoder_cfg=TransformerDecoderConfig(
         len(vocab),
         max_seq_len=64,
-        hidden_size=256,
-        num_layers=4,
-        intermediate_size=1024
+        hidden_size=512,
+        num_layers=6,
+        intermediate_size=2048
     ),
     src_vocab=vocab,
     tgt_vocab=vocab,

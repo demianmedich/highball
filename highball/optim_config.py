@@ -6,7 +6,8 @@ from abc import (
 )
 from typing import (
     Tuple,
-    Iterator
+    Iterator,
+    Union
 )
 
 from torch import Tensor
@@ -16,8 +17,7 @@ from torch.optim import (
     Adam
 )
 from torch.optim.lr_scheduler import (
-    _LRScheduler,
-    LambdaLR
+    _LRScheduler
 )
 from torch.optim.optimizer import Optimizer
 
@@ -40,7 +40,7 @@ class OptimizerConfig(metaclass=ABCMeta):
 class LrSchedulerConfig(metaclass=ABCMeta):
 
     @abstractmethod
-    def instantiate(self, optimizer: Optimizer) -> _LRScheduler:
+    def instantiate(self, optimizer: Optimizer) -> Union[_LRScheduler, dict]:
         raise NotImplementedError()
 
 
@@ -79,17 +79,30 @@ class AdamOptimizerConfig(OptimizerConfig):
         )
 
 
+def wrap_step_scheduler(scheduler: _LRScheduler) -> dict:
+    return {
+        'scheduler': scheduler,
+        'name': 'learning_rate',
+        'interval': 'step',
+        'frequency': 1
+    }
+
+
 @dataclasses.dataclass
 class LinearWarmupSchedulerConfig(LrSchedulerConfig):
     warmup_steps: int
     training_steps: int
     last_epoch: int = -1
 
-    def instantiate(self, optimizer: Optimizer) -> LambdaLR:
-        return get_linear_schedule_with_warmup(optimizer,
-                                               self.warmup_steps,
-                                               self.training_steps,
-                                               self.last_epoch)
+    def instantiate(self, optimizer: Optimizer) -> dict:
+        return wrap_step_scheduler(
+            get_linear_schedule_with_warmup(
+                optimizer,
+                self.warmup_steps,
+                self.training_steps,
+                self.last_epoch
+            )
+        )
 
 
 @dataclasses.dataclass
@@ -99,9 +112,13 @@ class CosineWarmupSchedulerConfig(LrSchedulerConfig):
     num_cycles: float = 0.5
     last_epoch: int = -1
 
-    def instantiate(self, optimizer: Optimizer) -> LambdaLR:
-        return get_cosine_schedule_with_warmup(optimizer,
-                                               self.warmup_steps,
-                                               self.training_steps,
-                                               self.num_cycles,
-                                               self.last_epoch)
+    def instantiate(self, optimizer: Optimizer) -> dict:
+        return wrap_step_scheduler(
+            get_cosine_schedule_with_warmup(
+                optimizer,
+                self.warmup_steps,
+                self.training_steps,
+                self.num_cycles,
+                self.last_epoch
+            )
+        )

@@ -151,18 +151,18 @@ class TransformerTranslationModel(LightningModule):
         return output
 
     def training_step(self, batched_input: dict, batch_idx: int) -> STEP_OUTPUT:
-        src_seq = batched_input['src_seq']
-        src_mask = batched_input.get('src_mask', None)
+        src_seq: Tensor = batched_input['src_seq']
+        src_mask: Tensor = batched_input.get('src_mask', None)
         if src_mask is not None and src_mask.dim() == 2:
             src_mask = src_mask[:, None, None, :]
-        tgt_seq = batched_input['tgt_seq']
+        tgt_seq: Tensor = batched_input['tgt_seq']
 
         # encode source sequence
         encoder_output = self.encode(src_seq, src_mask)
 
         # make decoder input sequence
         # 1. change EOS token to PAD token (every seq has EOS token)
-        eos_pos = (tgt_seq == self.eos_token_id).to(dtype=torch.long)
+        eos_pos = (tgt_seq == self.eos_token_id).type_as(tgt_seq)
         decoder_input_seq = tgt_seq * (1 - eos_pos) + (eos_pos * self.tgt_pad_token_id)
         # 2. insert SOS token at head of decoder input sequence
         decoder_input_seq = F.pad(decoder_input_seq[:, :-1], [1, 0], value=self.sos_token_id)
@@ -176,7 +176,7 @@ class TransformerTranslationModel(LightningModule):
                                       self.tgt_pad_token_id)
         self.log('training_loss', loss)
         self.log('training_acc', acc)
-        return loss
+        return {'loss': loss, 'acc': acc}
 
     def validation_step(self, batched_input: dict, batch_idx: int) -> Optional[STEP_OUTPUT]:
         tgt_seq = batched_input['tgt_seq']
