@@ -5,7 +5,7 @@ from functools import partial
 from typing import (
     Optional,
     Any,
-    Union
+    Union,
 )
 
 import torch
@@ -21,13 +21,13 @@ from torch.utils.data import DataLoader
 
 from highball.config import (
     LightningModuleConfig,
-    DatasetConfig
+    DataLoaderConfig,
 )
 from highball.modules.decoders.transformer_decoder import TransformerDecoderConfig
 from highball.modules.encoders.transformer_encoder import TransformerEncoderConfig
 from highball.vocab import (
     SimpleVocabulary,
-    load_vocabulary
+    load_vocabulary,
 )
 
 
@@ -94,19 +94,31 @@ class TransformerTranslationModel(LightningModule):
             return [optimizer], [scheduler]
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        if self.cfg.train_data_cfg is None:
-            return None
-        return self._make_dataloader(self.cfg.train_data_cfg, shuffle=True)
+        if self.cfg.train_dataloader_cfg is None:
+            return []
+        dataloader = self.cfg.train_dataloader_cfg.instantiate()
+        dataloader.collate_fn = partial(self.collate_fn,
+                                        src_pad_token_id=self.src_pad_token_id,
+                                        tgt_pad_token_id=self.tgt_pad_token_id)
+        return dataloader
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        if self.cfg.val_data_cfg is None:
-            return None
-        return self._make_dataloader(self.cfg.val_data_cfg, shuffle=False)
+        if self.cfg.val_dataloader_cfg is None:
+            return []
+        dataloader = self.cfg.val_dataloader_cfg.instantiate()
+        dataloader.collate_fn = partial(self.collate_fn,
+                                        src_pad_token_id=self.src_pad_token_id,
+                                        tgt_pad_token_id=self.tgt_pad_token_id)
+        return dataloader
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        if self.cfg.test_data_cfg is None:
-            return None
-        return self._make_dataloader(self.cfg.test_data_cfg, shuffle=False)
+        if self.cfg.test_dataloader_cfg is None:
+            return []
+        dataloader = self.cfg.test_dataloader_cfg.instantiate()
+        dataloader.collate_fn = partial(self.collate_fn,
+                                        src_pad_token_id=self.src_pad_token_id,
+                                        tgt_pad_token_id=self.tgt_pad_token_id)
+        return dataloader
 
     def encode(self, src_seq: Tensor, src_mask: Optional[Tensor] = None) -> Tensor:
         return self.encoder(src_seq, src_mask)
@@ -260,23 +272,6 @@ class TransformerTranslationModel(LightningModule):
         # tgt_mask = torch.clip(pad_mask + look_ahead_mask, min=0., max=1.)
         tgt_mask = pad_mask | look_ahead_mask
         return tgt_mask.unsqueeze(1)
-
-    def _make_dataloader(
-            self,
-            data_config: DatasetConfig,
-            shuffle: bool = False,
-    ) -> DataLoader:
-        ds = data_config.instantiate()
-        dataloader = DataLoader(
-            dataset=ds,
-            batch_size=self.cfg.training_cfg.batch_size,
-            shuffle=shuffle,
-            num_workers=self.cfg.training_cfg.num_workers,
-            collate_fn=partial(self.collate_fn,
-                               src_pad_token_id=self.src_pad_token_id,
-                               tgt_pad_token_id=self.tgt_pad_token_id)
-        )
-        return dataloader
 
 
 class Generator(nn.Module):

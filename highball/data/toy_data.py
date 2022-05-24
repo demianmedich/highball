@@ -3,20 +3,27 @@ import dataclasses
 import random
 from typing import Any
 
-from torch.utils.data import Dataset
+from torch.utils.data import (
+    Dataset,
+    DataLoader
+)
 
-from highball.config import DatasetConfig
+from highball.config import DataLoaderConfig
 from highball.vocab import SimpleVocabulary
 
 
 @dataclasses.dataclass
-class ReverseToyDatasetConfig(DatasetConfig):
+class ReverseToyDataLoaderConfig(DataLoaderConfig):
     vocab: SimpleVocabulary
     data_cnt: int
     max_seq_len: int
 
-    def instantiate(self) -> Dataset:
-        return ReverseToyDataset(self.vocab, self.data_cnt, self.max_seq_len)
+    def instantiate(self) -> DataLoader:
+        ds = ReverseToyDataset(self.vocab, self.data_cnt, self.max_seq_len)
+        return DataLoader(ds, batch_size=self.batch_size,
+                          shuffle=self.shuffle,
+                          num_workers=self.num_workers,
+                          pin_memory=self.pin_memory)
 
 
 class ReverseToyDataset(Dataset):

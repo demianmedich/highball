@@ -1,12 +1,13 @@
 # coding=utf-8
 import unittest
+from functools import partial
 
 import torch
 
 from highball.config import TrainingConfig
 from highball.data.toy_data import (
     ReverseToyDataset,
-    ReverseToyDatasetConfig
+    ReverseToyDataLoaderConfig
 )
 from highball.models.translation_transformer import (
     TransformerTranslationModelConfig,
@@ -31,7 +32,14 @@ class TranslationModelTestCase(unittest.TestCase):
     def test_transformer_translation_model_toy_dataset_training_step(self):
         vocab = ReverseToyDataset.make_default_vocab()
 
-        dataset_config = ReverseToyDatasetConfig(
+        batch_size = 4
+        num_workers = 1
+
+        dataset_config = ReverseToyDataLoaderConfig(
+            batch_size,
+            num_workers,
+            False,
+            False,
             vocab=vocab,
             data_cnt=28,
             max_seq_len=32,
@@ -39,13 +47,13 @@ class TranslationModelTestCase(unittest.TestCase):
 
         cfg = TransformerTranslationModelConfig(
             training_cfg=TrainingConfig(
-                batch_size=4
+                batch_size=batch_size
             ),
             optimizer_cfg=None,
             lr_scheduler_cfg=None,
-            train_data_cfg=None,
-            val_data_cfg=None,
-            test_data_cfg=None,
+            train_dataloader_cfg=None,
+            val_dataloader_cfg=None,
+            test_dataloader_cfg=None,
             encoder_cfg=TransformerEncoderConfig(
                 len(vocab),
                 max_seq_len=32,
@@ -64,12 +72,24 @@ class TranslationModelTestCase(unittest.TestCase):
         )
         model = cfg.instantiate()
         # _make_dataloader() is private method.
-        dataloader = model._make_dataloader(dataset_config, shuffle=False)
-        iterator = iter(dataloader)
-        items = next(iterator)
-        print(items)
+        dataloader = dataset_config.instantiate()
+        dataloader.collate_fn = partial(model.collate_fn,
+                                        src_pad_token_id=model.src_pad_token_id,
+                                        tgt_pad_token_id=model.tgt_pad_token_id
+                                        )
+        err_cnt = 0
+        try:
+            iterator = iter(dataloader)
+            items = next(iterator)
+            print(items)
 
-        model.training_step(items, 0)
+            model.training_step(items, 0)
+        except Exception as e:
+            cause = e.args[0]
+            print(cause)
+            err_cnt += 1
+        print(f'test done. err_cnt {err_cnt}')
+        self.assertEqual(err_cnt, 0)
 
 
 if __name__ == '__main__':

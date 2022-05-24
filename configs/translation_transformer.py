@@ -2,7 +2,7 @@
 from highball.config import TrainingConfig
 from highball.data.toy_data import (
     ReverseToyDataset,
-    ReverseToyDatasetConfig
+    ReverseToyDataLoaderConfig
 )
 from highball.models.translation_transformer import TransformerTranslationModelConfig
 from highball.modules.decoders.transformer_decoder import TransformerDecoderConfig
@@ -33,17 +33,29 @@ CFG = TransformerTranslationModelConfig(
         warmup_steps=int(training_steps * 0.01),
         training_steps=training_steps
     ),
-    train_data_cfg=ReverseToyDatasetConfig(
+    train_dataloader_cfg=ReverseToyDataLoaderConfig(
+        batch_size,
+        8,
+        True,
+        False,
         vocab,
         data_cnt=num_training_data_cnt,
         max_seq_len=64,
     ),
-    val_data_cfg=ReverseToyDatasetConfig(
+    val_dataloader_cfg=ReverseToyDataLoaderConfig(
+        batch_size,
+        8,
+        False,
+        False,
         vocab,
         data_cnt=6000,
         max_seq_len=64,
     ),
-    test_data_cfg=ReverseToyDatasetConfig(
+    test_dataloader_cfg=ReverseToyDataLoaderConfig(
+        batch_size,
+        8,
+        False,
+        False,
         vocab,
         data_cnt=6000,
         max_seq_len=64,
