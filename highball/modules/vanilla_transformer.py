@@ -51,7 +51,8 @@ class PositionEmbedding(nn.Module):
         self.register_buffer('pos', pos)
 
     def forward(self, x: Tensor):
-        x = x + self.pos_embedding(self.pos)
+        seq_len = x.shape[1]
+        x = x + self.pos_embedding(self.pos[:, :seq_len])
         return self.dropout(x)
 
 
