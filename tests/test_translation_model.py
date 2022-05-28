@@ -24,16 +24,25 @@ class TranslationModelTestCase(unittest.TestCase):
             [[61, 26, 41, 26, 46, 33, 36, 60, 11, 8, 19, 56, 17, 24, 12, 13, 29, 2],
              [44, 58, 62, 46, 45, 4, 49, 14, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
              [34, 6, 7, 54, 43, 17, 52, 5, 36, 27, 2, 0, 0, 0, 0, 0, 0, 0],
-             [37, 44, 20, 16, 44, 42, 32, 6, 59, 53, 58, 30, 20, 9, 2, 0, 0, 0]])
+             [37, 44, 20, 16, 44, 42, 32, 6, 59, 53, 58, 30, 20, 9, 2, 0, 0, 0]]
+        )
+        expected = torch.tensor(
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
+             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]]
+        )
         pad_token_id = 0
         tgt_mask = TransformerTranslationModel.make_tgt_mask(tgt_seq, pad_token_id)
         print(tgt_mask)
+
+        self.assertEqual(expected, tgt_mask)
 
     def test_transformer_translation_model_toy_dataset_training_step(self):
         vocab = ReverseToyDataset.make_default_vocab()
 
         batch_size = 4
-        num_workers = 1
+        num_workers = 8
 
         dataset_config = ReverseToyDataLoaderConfig(
             batch_size,
