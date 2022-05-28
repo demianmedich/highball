@@ -87,4 +87,5 @@ CFG = TransformerTranslationModelConfig(
     pad_token=vocab.DEFAULT_PAD_TOKEN,
     sos_token=vocab.DEFAULT_BOS_TOKEN,
     eos_token=vocab.DEFAULT_EOS_TOKEN,
+    init_method='xavier_normal'
 )

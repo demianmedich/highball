@@ -21,10 +21,13 @@ from torch.utils.data import DataLoader
 
 from highball.config import (
     LightningModuleConfig,
-    DataLoaderConfig,
 )
 from highball.modules.decoders.transformer_decoder import TransformerDecoderConfig
 from highball.modules.encoders.transformer_encoder import TransformerEncoderConfig
+from highball.utils import (
+    INIT_METHOD,
+    init_tensor_
+)
 from highball.vocab import (
     SimpleVocabulary,
     load_vocabulary,
@@ -40,6 +43,7 @@ class TransformerTranslationModelConfig(LightningModuleConfig):
     pad_token: str
     sos_token: str
     eos_token: str
+    init_method: INIT_METHOD
 
     def instantiate(self) -> "TransformerTranslationModel":
         if type(self.src_vocab) == str:
@@ -70,12 +74,13 @@ class TransformerTranslationModel(LightningModule):
         self.apply(self._init_weights)
 
     def _init_weights(self, module: nn.Module):
+        init_method = self.cfg.init_method
         if isinstance(module, nn.Linear):
-            nn.init.xavier_uniform_(module.weight)
+            init_tensor_(init_method, module.weight)
             if module.bias is not None:
                 module.bias.data.zero_()
         elif isinstance(module, nn.Embedding):
-            nn.init.xavier_uniform_(module.weight)
+            init_tensor_(init_method, module.weight)
             if module.padding_idx is not None:
                 module.weight.data[module.padding_idx].zero_()
         elif isinstance(module, nn.LayerNorm):
@@ -96,7 +101,7 @@ class TransformerTranslationModel(LightningModule):
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         if self.cfg.train_dataloader_cfg is None:
             return []
-        dataloader = self.cfg.train_dataloader_cfg.instantiate()
+        dataloader: DataLoader = self.cfg.train_dataloader_cfg.instantiate()
         dataloader.collate_fn = partial(self.collate_fn,
                                         src_pad_token_id=self.src_pad_token_id,
                                         tgt_pad_token_id=self.tgt_pad_token_id)
@@ -105,7 +110,7 @@ class TransformerTranslationModel(LightningModule):
     def val_dataloader(self) -> EVAL_DATALOADERS:
         if self.cfg.val_dataloader_cfg is None:
             return []
-        dataloader = self.cfg.val_dataloader_cfg.instantiate()
+        dataloader: DataLoader = self.cfg.val_dataloader_cfg.instantiate()
         dataloader.collate_fn = partial(self.collate_fn,
                                         src_pad_token_id=self.src_pad_token_id,
                                         tgt_pad_token_id=self.tgt_pad_token_id)
@@ -114,7 +119,7 @@ class TransformerTranslationModel(LightningModule):
     def test_dataloader(self) -> EVAL_DATALOADERS:
         if self.cfg.test_dataloader_cfg is None:
             return []
-        dataloader = self.cfg.test_dataloader_cfg.instantiate()
+        dataloader: DataLoader = self.cfg.test_dataloader_cfg.instantiate()
         dataloader.collate_fn = partial(self.collate_fn,
                                         src_pad_token_id=self.src_pad_token_id,
                                         tgt_pad_token_id=self.tgt_pad_token_id)
