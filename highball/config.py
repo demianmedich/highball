@@ -4,7 +4,12 @@ from abc import (
     ABCMeta,
     abstractmethod
 )
-from typing import Optional
+from datetime import timedelta
+from typing import (
+    Optional,
+    Union,
+    List
+)
 
 import torch
 from pytorch_lightning import LightningModule
@@ -15,16 +20,33 @@ from highball.optim_config import (
     LrSchedulerConfig
 )
 
+CHECKPOINTING_CONFIG_TYPE = Union["CheckpointingConfig", List["CheckpointingConfig"]]
+
 
 @dataclasses.dataclass
 class TrainingConfig:
     accelerator: Optional[str] = 'gpu' if torch.cuda.is_available() else None
     devices: Optional[int] = 1 if torch.cuda.is_available() else None
     num_epochs: int = 1
-    batch_size: int = 1
-    num_workers: int = 6
     clip_grad_norm: float = 0.
     use_lr_monitor: bool = False
+    num_sanity_val_steps: int = 0
+    checkpointing_cfg: Optional[CHECKPOINTING_CONFIG_TYPE] = None
+
+
+@dataclasses.dataclass
+class CheckpointingConfig:
+    dirpath: Optional[str] = None
+    filename: Optional[str] = None
+    monitor: Optional[str] = None
+    mode: str = 'min'
+    save_last: Optional[bool] = None
+    save_top_k: int = 1
+    save_weights_only: bool = False
+    every_n_train_steps: Optional[int] = None
+    train_time_interval: Optional[timedelta] = None
+    every_n_epochs: Optional[int] = None
+    save_on_train_epoch_end: Optional[bool] = None
 
 
 @dataclasses.dataclass
