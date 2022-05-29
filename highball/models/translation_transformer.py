@@ -192,7 +192,7 @@ class TransformerTranslationModel(LightningModule):
         acc = self.calculate_accuracy(torch.argmax(decoder_logits, dim=-1), tgt_seq,
                                       self.tgt_pad_token_id)
         self.log('training_loss', loss)
-        self.log('training_acc', acc)
+        self.log('training_acc', acc, prog_bar=True)
         return {'loss': loss, 'acc': acc}
 
     def validation_step(self, batched_input: dict, batch_idx: int) -> Optional[STEP_OUTPUT]:
@@ -207,23 +207,28 @@ class TransformerTranslationModel(LightningModule):
         acc = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
         # on_epoch: Automatically accumulates and logs at the end of the epoch
         # reduce_fx: Reduction function over step values for end of epoch. Uses torch.mean() by default.
-        self.log('val_loss', loss, on_epoch=True)
-        self.log('val_acc', acc, on_epoch=True)
+        self.log_dict({
+            'val_loss': loss,
+            'val_acc': acc
+        })
         return None
 
     def test_step(self, batched_input: dict, batch_idx: int) -> Optional[STEP_OUTPUT]:
         tgt_seq = batched_input['tgt_seq']
+        tgt_seq_len = tgt_seq.shape[1]
         output = self(batched_input)
 
         pred = output['pred']
         logits = output['logits']
 
-        loss = self.calculate_loss(logits, tgt_seq, self.tgt_pad_token_id)
-        acc = self.calculate_accuracy(pred, tgt_seq, self.tgt_pad_token_id)
+        loss = self.calculate_loss(logits[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
+        acc = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
         # on_epoch: Automatically accumulates and logs at the end of the epoch
         # reduce_fx: Reduction function over step values for end of epoch. Uses torch.mean() by default.
-        self.log('val_loss', loss, on_epoch=True)
-        self.log('val_acc', acc, on_epoch=True)
+        self.log_dict({
+            'test_loss': loss,
+            'test_acc': acc
+        })
         return None
 
     @staticmethod
