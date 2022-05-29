@@ -21,28 +21,44 @@ class TranslationModelTestCase(unittest.TestCase):
 
     def test_make_target_mask(self):
         tgt_seq = torch.tensor(
-            [[61, 26, 41, 26, 46, 33, 36, 60, 11, 8, 19, 56, 17, 24, 12, 13, 29, 2],
-             [44, 58, 62, 46, 45, 4, 49, 14, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-             [34, 6, 7, 54, 43, 17, 52, 5, 36, 27, 2, 0, 0, 0, 0, 0, 0, 0],
-             [37, 44, 20, 16, 44, 42, 32, 6, 59, 53, 58, 30, 20, 9, 2, 0, 0, 0]]
+            [[61, 26, 41, 26, 46],
+             [44, 58, 62, 0, 0],
+             [34, 6, 0, 0, 0],
+             [37, 44, 20, 16, 0]]
         )
         expected = torch.tensor(
-            [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-             [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1],
-             [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]]
+            [[[[0, 1, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 0, 1, 1],
+               [0, 0, 0, 0, 1],
+               [0, 0, 0, 0, 0]]],
+             [[[0, 1, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 0, 1, 1],
+               [0, 0, 0, 1, 1],
+               [0, 0, 0, 1, 1]]],
+             [[[0, 1, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 1, 1, 1]]],
+             [[[0, 1, 1, 1, 1],
+               [0, 0, 1, 1, 1],
+               [0, 0, 0, 1, 1],
+               [0, 0, 0, 0, 1],
+               [0, 0, 0, 0, 1]]]]
         )
         pad_token_id = 0
         tgt_mask = TransformerTranslationModel.make_tgt_mask(tgt_seq, pad_token_id)
         print(tgt_mask)
 
-        self.assertEqual(expected, tgt_mask)
+        self.assertEqual(torch.equal(expected, tgt_mask), True)
 
     def test_transformer_translation_model_toy_dataset_training_step(self):
         vocab = ReverseToyDataset.make_default_vocab()
 
         batch_size = 4
-        num_workers = 8
+        num_workers = 2
 
         dataset_config = ReverseToyDataLoaderConfig(
             batch_size,
@@ -56,7 +72,6 @@ class TranslationModelTestCase(unittest.TestCase):
 
         cfg = TransformerTranslationModelConfig(
             training_cfg=TrainingConfig(
-                batch_size=batch_size
             ),
             optimizer_cfg=None,
             lr_scheduler_cfg=None,
@@ -78,6 +93,7 @@ class TranslationModelTestCase(unittest.TestCase):
             pad_token=vocab.DEFAULT_PAD_TOKEN,
             sos_token=vocab.DEFAULT_BOS_TOKEN,
             eos_token=vocab.DEFAULT_EOS_TOKEN,
+            init_method='xavier_normal'
         )
         model = cfg.instantiate()
         # _make_dataloader() is private method.
