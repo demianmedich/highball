@@ -10,13 +10,15 @@ from pytorch_lightning import (
 )
 from pytorch_lightning.callbacks import (
     LearningRateMonitor,
-    ModelCheckpoint
+    ModelCheckpoint,
+    EarlyStopping
 )
 
 from highball.config import (
     LightningModuleConfig,
     TrainingConfig,
-    CHECKPOINTING_CONFIG_TYPE
+    CHECKPOINTING_CONFIG_TYPE,
+    EarlyStoppingConfig
 )
 
 
@@ -40,8 +42,8 @@ def main(args: argparse.Namespace) -> None:
     )
     trainer.fit(model)
 
-    # TODO: Call trainer.test()
-    # trainer.test(model)
+    # Do test
+    trainer.test(model)
 
 
 def parse_args() -> argparse.Namespace:
@@ -57,6 +59,7 @@ def add_callbacks(cfg: TrainingConfig) -> List[Callback]:
     if cfg.use_lr_monitor:
         callbacks.append(LearningRateMonitor(logging_interval='step'))
     add_checkpointing_callbacks_(cfg.checkpointing_cfg, callbacks)
+    add_early_stopping_callbacks_(cfg.early_stopping_cfg, callbacks)
     return callbacks
 
 
@@ -90,6 +93,14 @@ def add_checkpointing_callbacks_(cfg: CHECKPOINTING_CONFIG_TYPE, callbacks: List
                             every_n_epochs=cfg.every_n_epochs,
                             save_on_train_epoch_end=cfg.save_on_train_epoch_end)
         )
+
+
+def add_early_stopping_callbacks_(cfg: EarlyStoppingConfig, callbacks: List[Callback]):
+    callbacks.append(
+        EarlyStopping(monitor=cfg.monitor,
+                      mode=cfg.mode,
+                      patience=cfg.patience)
+    )
 
 
 if __name__ == '__main__':

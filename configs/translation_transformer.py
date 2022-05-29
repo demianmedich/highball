@@ -1,7 +1,8 @@
 # coding=utf-8
 from highball.config import (
     TrainingConfig,
-    CheckpointingConfig
+    CheckpointingConfig,
+    EarlyStoppingConfig
 )
 from highball.data.toy_data import (
     ReverseToyDataset,
@@ -15,11 +16,12 @@ from highball.optim_config import (
     CosineWarmupSchedulerConfig
 )
 
-batch_size = 16
-num_epochs = 40
+batch_size = 8
+num_epochs = 100
 num_training_data_cnt = 10000
 num_eval_data_cnt = 100
 devices = 1
+num_workers = 2
 training_steps = int((num_training_data_cnt * num_epochs) // (batch_size * devices))
 max_seq_len = 128
 vocab = ReverseToyDataset.make_default_vocab()
@@ -29,11 +31,19 @@ CFG = TransformerTranslationModelConfig(
         num_epochs=num_epochs,
         checkpointing_cfg=CheckpointingConfig(
             every_n_epochs=1,
-            save_top_k=-1,
-        )
+            save_top_k=3,
+            monitor='val_loss',
+            mode='min'
+        ),
+        early_stopping_cfg=EarlyStoppingConfig(
+            monitor='val_loss',
+            mode='min',
+            patience=5,
+        ),
+        num_sanity_val_steps=2,
     ),
     optimizer_cfg=AdamOptimizerConfig(
-        lr=0.01,
+        lr=0.002,
         # weight_decay=0.1,
         betas=(0.9, 0.98)
     ),
@@ -43,7 +53,7 @@ CFG = TransformerTranslationModelConfig(
     ),
     train_dataloader_cfg=ReverseToyDataLoaderConfig(
         batch_size,
-        8,
+        num_workers,
         True,
         False,
         vocab,
@@ -52,7 +62,7 @@ CFG = TransformerTranslationModelConfig(
     ),
     val_dataloader_cfg=ReverseToyDataLoaderConfig(
         batch_size,
-        8,
+        num_workers,
         False,
         False,
         vocab,
@@ -61,7 +71,7 @@ CFG = TransformerTranslationModelConfig(
     ),
     test_dataloader_cfg=ReverseToyDataLoaderConfig(
         batch_size,
-        8,
+        num_workers,
         False,
         False,
         vocab,

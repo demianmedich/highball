@@ -32,6 +32,7 @@ class TrainingConfig:
     use_lr_monitor: bool = False
     num_sanity_val_steps: int = 0
     checkpointing_cfg: Optional[CHECKPOINTING_CONFIG_TYPE] = None
+    early_stopping_cfg: Optional["EarlyStoppingConfig"] = None
 
 
 @dataclasses.dataclass
@@ -47,6 +48,13 @@ class CheckpointingConfig:
     train_time_interval: Optional[timedelta] = None
     every_n_epochs: Optional[int] = None
     save_on_train_epoch_end: Optional[bool] = None
+
+
+@dataclasses.dataclass
+class EarlyStoppingConfig:
+    monitor: str
+    mode: str = 'min'
+    patience: int = 3
 
 
 @dataclasses.dataclass
