@@ -43,7 +43,10 @@ def main(args: argparse.Namespace) -> None:
     trainer.fit(model)
 
     # Do test
-    trainer.test(model)
+    if cfg.test_dataloader_cfg is not None:
+        trainer.test(model)
+    else:
+        print('test_dataloader_cfg is None. skipped test step')
 
 
 def parse_args() -> argparse.Namespace:
