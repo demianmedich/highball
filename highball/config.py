@@ -27,10 +27,12 @@ CHECKPOINTING_CONFIG_TYPE = Union["CheckpointingConfig", List["CheckpointingConf
 class TrainingConfig:
     accelerator: Optional[str] = 'gpu' if torch.cuda.is_available() else None
     devices: Optional[int] = 1 if torch.cuda.is_available() else None
+    strategy: str = 'ddp'
     num_epochs: int = 1
     clip_grad_norm: float = 0.
     use_lr_monitor: bool = False
     num_sanity_val_steps: int = 0
+    reload_dataloader_every_n_epochs: int = 0
     checkpointing_cfg: Optional[CHECKPOINTING_CONFIG_TYPE] = None
     early_stopping_cfg: Optional["EarlyStoppingConfig"] = None
 
