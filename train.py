@@ -3,6 +3,7 @@ import argparse
 import importlib
 from typing import List
 
+import pytorch_lightning
 from pytorch_lightning import (
     Callback,
     Trainer,
@@ -23,7 +24,8 @@ from highball.config import (
 
 
 def main(args: argparse.Namespace) -> None:
-    print('Start train.py')
+    print(f'Start train.py\n'
+          f'args: {args}')
 
     args.cfg = args.cfg.replace('/', '.').replace('.py', '')
     cfg: LightningModuleConfig = importlib.import_module(args.cfg).CFG
@@ -32,13 +34,17 @@ def main(args: argparse.Namespace) -> None:
     assert cfg.training_cfg, 'training_cfg should not be None'
     callbacks = add_callbacks(cfg.training_cfg)
 
+    pytorch_lightning.seed_everything(args.seed)
+
     trainer = Trainer(
         max_epochs=cfg.training_cfg.num_epochs,
         callbacks=callbacks,
         gradient_clip_val=cfg.training_cfg.clip_grad_norm,
         accelerator=cfg.training_cfg.accelerator,
         devices=cfg.training_cfg.devices,
-        num_sanity_val_steps=cfg.training_cfg.num_sanity_val_steps
+        num_sanity_val_steps=cfg.training_cfg.num_sanity_val_steps,
+        deterministic=True,
+        reload_dataloaders_every_n_epochs=cfg.training_cfg.reload_dataloader_every_n_epochs
     )
     trainer.fit(model)
 
@@ -53,6 +59,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('--cfg', required=True, type=str,
                         help='Path of configuration python file')
+    parser.add_argument('--seed', type=int, default=1988,
+                        help='seed to generate random values. '
+                             'if not specified, default value will be used. (1988)')
     args = parser.parse_args()
     return args
 
