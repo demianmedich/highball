@@ -6,6 +6,8 @@ from typing import (
     Optional,
     Any,
     Union,
+    Dict,
+    List,
 )
 
 import torch
@@ -15,6 +17,7 @@ from pytorch_lightning.utilities.types import (
     TRAIN_DATALOADERS,
     EVAL_DATALOADERS,
     STEP_OUTPUT,
+    EPOCH_OUTPUT,
 )
 from torch import Tensor, nn
 from torch.utils.data import DataLoader
@@ -189,11 +192,11 @@ class TransformerTranslationModel(LightningModule):
         decoder_output = self.decode(decoder_input_seq, encoder_output, src_mask, tgt_mask)
         decoder_logits = self.generator(decoder_output)
         loss = self.calculate_loss(decoder_logits, tgt_seq, self.tgt_pad_token_id)
-        acc = self.calculate_accuracy(torch.argmax(decoder_logits, dim=-1), tgt_seq,
-                                      self.tgt_pad_token_id)
+        acc_dict = self.calculate_accuracy(torch.argmax(decoder_logits, dim=-1), tgt_seq,
+                                           self.tgt_pad_token_id)
         self.log('training_loss', loss)
-        self.log('training_acc', acc, prog_bar=True)
-        return {'loss': loss, 'acc': acc}
+        self.log('training_acc', acc_dict['acc'], prog_bar=True)
+        return loss
 
     def validation_step(self, batched_input: dict, batch_idx: int) -> Optional[STEP_OUTPUT]:
         tgt_seq = batched_input['tgt_seq']
@@ -204,14 +207,31 @@ class TransformerTranslationModel(LightningModule):
         logits = output['logits']
 
         loss = self.calculate_loss(logits[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
-        acc = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
+        acc_dict = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
         # on_epoch: Automatically accumulates and logs at the end of the epoch
         # reduce_fx: Reduction function over step values for end of epoch. Uses torch.mean() by default.
         self.log_dict({
             'val_loss': loss,
-            'val_acc': acc
+            'val_acc': acc_dict['acc']
         })
-        return None
+        return {
+            'num_tokens': acc_dict['num_tokens'],
+            'num_correct': acc_dict['num_correct']
+        }
+
+    def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+        gathered_outputs = self.all_gather(outputs)
+        num_tokens_gathered = gathered_outputs[0]['num_tokens']
+        num_correct_gathered = gathered_outputs[0]['num_correct']
+
+        if self.global_rank == 0:
+            metric_output = {
+                'val_acc': num_correct_gathered / num_tokens_gathered,
+                'num_correct': num_correct_gathered,
+                'num_tokens': num_tokens_gathered
+            }
+            self.log_dict(metric_output, rank_zero_only=True)
+            print(metric_output)
 
     def test_step(self, batched_input: dict, batch_idx: int) -> Optional[STEP_OUTPUT]:
         tgt_seq = batched_input['tgt_seq']
@@ -222,14 +242,31 @@ class TransformerTranslationModel(LightningModule):
         logits = output['logits']
 
         loss = self.calculate_loss(logits[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
-        acc = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
+        acc_dict = self.calculate_accuracy(pred[:, :tgt_seq_len], tgt_seq, self.tgt_pad_token_id)
         # on_epoch: Automatically accumulates and logs at the end of the epoch
         # reduce_fx: Reduction function over step values for end of epoch. Uses torch.mean() by default.
         self.log_dict({
             'test_loss': loss,
-            'test_acc': acc
+            'test_acc': acc_dict['acc']
         })
-        return None
+        return {
+            'num_tokens': acc_dict['num_tokens'],
+            'num_correct': acc_dict['num_correct']
+        }
+
+    def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
+        gathered_outputs = self.all_gather(outputs)
+        num_tokens_gathered = gathered_outputs[0]['num_tokens']
+        num_correct_gathered = gathered_outputs[0]['num_correct']
+
+        if self.global_rank == 0:
+            metric_output = {
+                'test_acc': num_correct_gathered / num_tokens_gathered,
+                'num_correct': num_correct_gathered,
+                'num_tokens': num_tokens_gathered
+            }
+            self.log_dict(metric_output, rank_zero_only=True)
+            print(metric_output)
 
     @staticmethod
     def calculate_loss(logits: Tensor, target: Tensor, pad_token_id: int) -> Tensor:
@@ -239,11 +276,17 @@ class TransformerTranslationModel(LightningModule):
         return loss
 
     @staticmethod
-    def calculate_accuracy(pred: Tensor, target: Tensor, pad_token_id: int) -> Tensor:
+    def calculate_accuracy(pred: Tensor, target: Tensor, pad_token_id: int) -> Dict[str, Tensor]:
         accuracy = pred == target
         mask = target != pad_token_id
         accuracy &= mask
-        return accuracy.sum() / mask.sum()
+        num_correct = accuracy.sum()
+        num_tokens = mask.sum()
+        return {
+            'acc': num_correct / num_tokens,
+            'num_correct': num_correct,
+            'num_tokens': num_tokens,
+        }
 
     @staticmethod
     def collate_fn(samples: list, src_pad_token_id: int, tgt_pad_token_id: int):
