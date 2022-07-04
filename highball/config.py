@@ -13,6 +13,7 @@ from typing import (
 
 import torch
 from pytorch_lightning import LightningModule
+from pytorch_lightning.utilities.exceptions import MisconfigurationException
 from torch.utils.data import DataLoader
 
 from highball.optim_config import (
@@ -27,14 +28,30 @@ CHECKPOINTING_CONFIG_TYPE = Union["CheckpointingConfig", List["CheckpointingConf
 class TrainingConfig:
     accelerator: Optional[str] = 'gpu' if torch.cuda.is_available() else None
     devices: Optional[int] = 1 if torch.cuda.is_available() else None
-    strategy: str = 'ddp'
+    strategy: str = 'ddp' if torch.cuda.is_available() and torch.cuda.device_count() > 1 else None
     num_epochs: int = 1
     clip_grad_norm: float = 0.
     use_lr_monitor: bool = False
     num_sanity_val_steps: int = 0
+    deterministic: bool = True
     reload_dataloader_every_n_epochs: int = 0
     checkpointing_cfg: Optional[CHECKPOINTING_CONFIG_TYPE] = None
     early_stopping_cfg: Optional["EarlyStoppingConfig"] = None
+
+    def __post_init__(self):
+        cuda_gpu_available = torch.cuda.is_available()
+        if self.accelerator == 'gpu' and not cuda_gpu_available:
+            raise MisconfigurationException('This system cannot use CUDA but requested by config')
+        elif self.accelerator == 'gpu' and cuda_gpu_available:
+            device_count = torch.cuda.device_count()
+            if isinstance(self.devices, int):
+                if device_count < self.devices:
+                    raise MisconfigurationException(f'This system has {device_count} devices but '
+                                                    f'{self.devices} requested')
+            elif isinstance(self.devices, list):
+                for d in self.devices:
+                    if device_count >= d:
+                        raise MisconfigurationException(f'Requested device {d} cannot be used')
 
 
 @dataclasses.dataclass
