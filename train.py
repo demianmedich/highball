@@ -1,6 +1,7 @@
 # coding=utf-8
 import argparse
 import importlib
+from copy import deepcopy
 from typing import List
 
 import pytorch_lightning
@@ -31,21 +32,9 @@ def main(args: argparse.Namespace) -> None:
     cfg: LightningModuleConfig = importlib.import_module(args.cfg).CFG
     model: LightningModule = cfg.instantiate()
 
-    assert cfg.training_cfg, 'training_cfg should not be None'
-    callbacks = add_callbacks(cfg.training_cfg)
-
     pytorch_lightning.seed_everything(args.seed)
 
-    trainer = Trainer(
-        max_epochs=cfg.training_cfg.num_epochs,
-        callbacks=callbacks,
-        gradient_clip_val=cfg.training_cfg.clip_grad_norm,
-        accelerator=cfg.training_cfg.accelerator,
-        devices=cfg.training_cfg.devices,
-        num_sanity_val_steps=cfg.training_cfg.num_sanity_val_steps,
-        deterministic=True,
-        reload_dataloaders_every_n_epochs=cfg.training_cfg.reload_dataloader_every_n_epochs
-    )
+    trainer = make_trainer(cfg.training_cfg)
     trainer.fit(model)
 
     # Do test
@@ -64,6 +53,25 @@ def parse_args() -> argparse.Namespace:
                              'if not specified, default value will be used. (1988)')
     args = parser.parse_args()
     return args
+
+
+def make_trainer(cfg: TrainingConfig) -> Trainer:
+    assert cfg, 'training_cfg should not be None'
+
+    cfg = deepcopy(cfg)
+    callbacks = add_callbacks(cfg)
+
+    trainer = Trainer(
+        max_epochs=cfg.num_epochs,
+        callbacks=callbacks,
+        gradient_clip_val=cfg.clip_grad_norm,
+        accelerator=cfg.accelerator,
+        devices=cfg.devices,
+        num_sanity_val_steps=cfg.num_sanity_val_steps,
+        deterministic=cfg.deterministic,
+        reload_dataloaders_every_n_epochs=cfg.reload_dataloader_every_n_epochs
+    )
+    return trainer
 
 
 def add_callbacks(cfg: TrainingConfig) -> List[Callback]:
