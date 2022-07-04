@@ -1,8 +1,11 @@
 # coding=utf-8
-import warnings
+import time
 from typing import Literal
 
-from torch import nn, Tensor
+from torch import (
+    nn,
+    Tensor
+)
 
 INIT_METHOD = Literal[
     'zeros',
@@ -56,3 +59,17 @@ def init_tensor_(method: INIT_METHOD, tensor: Tensor, **kwargs) -> None:
         nn.init.kaiming_normal_(tensor, a, mode, nonlinearity)
     else:
         pass
+
+
+class PerfCounter:
+
+    def __init__(self):
+        self.start_time: float = 0.0
+        self.elapsed_time: float = 0.0
+
+    def __enter__(self):
+        self.start_time = time.perf_counter()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.elapsed_time = time.perf_counter() - self.start_time
