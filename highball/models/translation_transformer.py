@@ -221,8 +221,8 @@ class TransformerTranslationModel(LightningModule):
 
     def validation_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         gathered_outputs = self.all_gather(outputs)
-        num_tokens_gathered = gathered_outputs[0]['num_tokens']
-        num_correct_gathered = gathered_outputs[0]['num_correct']
+        num_tokens_gathered = gathered_outputs[0]['num_tokens'].float()
+        num_correct_gathered = gathered_outputs[0]['num_correct'].float()
 
         if self.global_rank == 0:
             metric_output = {
@@ -256,8 +256,8 @@ class TransformerTranslationModel(LightningModule):
 
     def test_epoch_end(self, outputs: Union[EPOCH_OUTPUT, List[EPOCH_OUTPUT]]) -> None:
         gathered_outputs = self.all_gather(outputs)
-        num_tokens_gathered = gathered_outputs[0]['num_tokens']
-        num_correct_gathered = gathered_outputs[0]['num_correct']
+        num_tokens_gathered = gathered_outputs[0]['num_tokens'].to(dtype=torch.float32)
+        num_correct_gathered = gathered_outputs[0]['num_correct'].to(dtype=torch.float32)
 
         if self.global_rank == 0:
             metric_output = {
